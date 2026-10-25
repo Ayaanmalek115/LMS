@@ -90,6 +90,7 @@ export default function App() {
 
         {activeTab === 'loans' && (
           <IssuedLoansPage
+            activeUser={activeUser}
             onReturnSuccess={handleRefresh}
             reloadTrigger={reloadTrigger}
           />

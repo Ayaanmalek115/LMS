@@ -1,17 +1,28 @@
-import React, { useState } from 'react';
-import { X, BookCheck, Calendar, User, AlertCircle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, BookCheck, Calendar, User, AlertCircle, CheckCircle2, ShieldAlert, Lock } from 'lucide-react';
 import api from '../services/api';
 
 export default function IssueModal({ book, users, activeUser, onClose, onSuccess }) {
   const [selectedUserId, setSelectedUserId] = useState(
-    activeUser ? activeUser._id : users[0]?._id || ''
+    activeUser ? activeUser._id : ''
   );
   const [loanDays, setLoanDays] = useState(14);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  useEffect(() => {
+    if (activeUser) {
+      setSelectedUserId(activeUser._id);
+    } else {
+      setSelectedUserId('');
+    }
+  }, [activeUser]);
+
   if (!book) return null;
+
+  const isGuest = !activeUser;
+  const isLibrarian = activeUser && activeUser.role === 'librarian';
 
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + Number(loanDays));
@@ -20,8 +31,10 @@ export default function IssueModal({ book, users, activeUser, onClose, onSuccess
     e.preventDefault();
     setError('');
 
-    if (!selectedUserId) {
-      setError('Please select a library member to issue this book to');
+    const borrowerId = !isLibrarian && activeUser ? activeUser._id : selectedUserId;
+
+    if (!borrowerId) {
+      setError('You must be logged in as a library member to borrow books. Please select a user profile in the top right.');
       return;
     }
 
@@ -29,7 +42,7 @@ export default function IssueModal({ book, users, activeUser, onClose, onSuccess
     try {
       const res = await api.borrowBook({
         bookId: book._id,
-        userId: selectedUserId,
+        userId: borrowerId,
         days: loanDays,
       });
 
@@ -82,6 +95,17 @@ export default function IssueModal({ book, users, activeUser, onClose, onSuccess
             </div>
           )}
 
+          {/* Guest Warning */}
+          {isGuest && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start space-x-2.5">
+              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-semibold">Browsing as Guest</strong>
+                Guests cannot borrow books. Please select your member profile (e.g. <strong>Alex Rivers</strong> or <strong>Sarah Chen</strong>) from the user menu at the top-right of the page to borrow.
+              </div>
+            </div>
+          )}
+
           {/* Book Summary Card */}
           <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
             <img
@@ -103,26 +127,60 @@ export default function IssueModal({ book, users, activeUser, onClose, onSuccess
             </div>
           </div>
 
-          {/* Member Picker */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1.5">
-              <User className="w-3.5 h-3.5 text-slate-500" />
-              <span>Borrowing Member</span>
-            </label>
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              required
-            >
-              <option value="" disabled>Select member...</option>
-              {users.map((u) => (
-                <option key={u._id} value={u._id}>
-                  {u.name} ({u.email})
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Member Identity: Locked to Active User for regular members */}
+          {!isGuest && !isLibrarian && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1.5">
+                <Lock className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Borrowing Account (Locked to you)</span>
+              </label>
+              <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                    {activeUser.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">{activeUser.name}</div>
+                    <div className="text-[11px] text-slate-500">{activeUser.email}</div>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white text-indigo-700 border border-indigo-200">
+                  {activeUser.role}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1 pl-1">
+                This book will be issued under your account. Only you can return this book.
+              </p>
+            </div>
+          )}
+
+          {/* Librarian Mode: Can issue for self or select member */}
+          {isLibrarian && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center space-x-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Issue To Member (Librarian Admin)</span>
+                </span>
+                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  Admin Control
+                </span>
+              </label>
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                required
+              >
+                <option value="" disabled>Select member...</option>
+                {users.map((u) => (
+                  <option key={u._id} value={u._id}>
+                    {u.name} ({u.email}) — {u.role}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Loan Duration */}
           <div>
@@ -165,11 +223,15 @@ export default function IssueModal({ book, users, activeUser, onClose, onSuccess
             </button>
             <button
               type="submit"
-              disabled={loading || Boolean(successMsg)}
-              className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl flex items-center space-x-1.5 shadow-sm shadow-indigo-200 transition-all disabled:opacity-50"
+              disabled={loading || Boolean(successMsg) || isGuest}
+              className={`px-5 py-2 text-xs font-semibold rounded-xl flex items-center space-x-1.5 shadow-sm transition-all ${
+                isGuest
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+              } disabled:opacity-50`}
             >
               <BookCheck className="w-3.5 h-3.5" />
-              <span>{loading ? 'Issuing...' : 'Confirm Borrow'}</span>
+              <span>{loading ? 'Issuing...' : isGuest ? 'Login to Borrow' : 'Confirm Borrow'}</span>
             </button>
           </div>
         </form>

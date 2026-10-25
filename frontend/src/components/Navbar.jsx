@@ -57,7 +57,7 @@ export default function Navbar({ activeTab, setActiveTab, users, activeUser, set
               }`}
             >
               <ClipboardList className="w-4 h-4" />
-              <span>Issued Loans</span>
+              <span>{activeUser ? 'My Loans' : 'Issued Loans'}</span>
             </button>
 
             <button

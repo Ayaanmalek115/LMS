@@ -59,7 +59,7 @@ export const api = {
     return request(`/issues${qs ? `?${qs}` : ''}`);
   },
   borrowBook: (data) => request('/issues/borrow', { method: 'POST', body: data }),
-  returnBook: (issueId) => request('/issues/return', { method: 'POST', body: { issueId } }),
+  returnBook: (issueId, userId) => request('/issues/return', { method: 'POST', body: { issueId, userId } }),
 
   // Recommendations
   getPersonalizedRecommendations: (userId = 'guest', limit = 8) =>

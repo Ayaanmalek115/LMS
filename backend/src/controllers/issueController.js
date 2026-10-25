@@ -74,19 +74,38 @@ exports.issueBook = async (req, res) => {
 // Return an issued book
 exports.returnBook = async (req, res) => {
   try {
-    const { issueId } = req.body;
+    const { issueId, userId } = req.body;
 
     if (!issueId) {
       return res.status(400).json({ success: false, message: 'Issue ID is required' });
     }
 
-    const issue = await Issue.findById(issueId).populate('book');
+    const issue = await Issue.findById(issueId).populate('book').populate('user');
     if (!issue) {
       return res.status(404).json({ success: false, message: 'Issue record not found' });
     }
 
     if (issue.status === 'returned') {
       return res.status(400).json({ success: false, message: 'This book has already been returned' });
+    }
+
+    // Ownership check: only the person who borrowed the book (or a librarian) can return it!
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'You must be logged in as a library member to return a book.',
+      });
+    }
+
+    const requestingUser = await User.findById(userId);
+    const isBorrower = issue.user && issue.user._id.toString() === userId.toString();
+    const isLibrarian = requestingUser && requestingUser.role === 'librarian';
+
+    if (!isBorrower && !isLibrarian) {
+      return res.status(403).json({
+        success: false,
+        message: `Unauthorized: This book was borrowed by "${issue.user?.name || 'another member'}". Only they can return this book!`,
+      });
     }
 
     issue.status = 'returned';
@@ -108,7 +127,7 @@ exports.returnBook = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Book returned successfully',
+      message: `"${issue.book?.title || 'Book'}" returned successfully by ${requestingUser?.name || 'member'}!`,
       data: populated,
     });
   } catch (err) {
